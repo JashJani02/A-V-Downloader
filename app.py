@@ -1,52 +1,35 @@
-import os
-import tempfile
-from flask import Flask, render_template, request, send_file
-import yt_dlp
+import streamlit as st
+import yt_dlp as ytd
 
-app = Flask(__name__)
+st.write("# Audio-Video Downloader")
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+link = st.text_input("Enter the URL of the audio or video you want to download:")
 
-@app.route('/download', methods=['POST'])
-def download():
-    url = request.form['url']
-    format_choice = request.form['format']  # video or audio
+format_choice = st.selectbox("Select the format:- Audio/Video", options=["mp3", "mp4"])
 
-    # create temp directory
-    temp_dir = tempfile.mkdtemp()
+if st.button("Download"):
+    if link:
+        if format_choice == "mp3":
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'outtmpl': '%(title)s.%(ext)s',
+            }
 
-    # file output template
-    outtmpl = os.path.join(temp_dir, '%(title)s.%(ext)s')
+        else:  # MP4
+            ydl_opts = {
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
+                'merge_output_format': 'mp4',
+                'outtmpl': '%(title)s.%(ext)s',
+            }
 
-    # base options
-    ydl_opts = {
-        'outtmpl': outtmpl,
-    }
+        with ytd.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([link])
 
-    if format_choice == 'audio':
-        ydl_opts.update({
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        })
-    else:  # video
-        ydl_opts.update({
-            'format': 'best[ext=mp4]/best',
-        })
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-        if format_choice == 'audio':
-            filename = os.path.splitext(filename)[0] + ".mp3"
-
-    return send_file(filename, as_attachment=True)
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+        st.success(f"Download completed! File saved as .{format_choice}")
+    else:
+        st.error("Please enter a valid URL.")
