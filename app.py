@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 import yt_dlp as ytd
+from streamlit import code
 
 st.set_page_config(page_title="Audio-Video Downloader")
 st.title("Audio-Video Downloader")
@@ -32,8 +33,75 @@ def get_preview_info(url):
 
     return info
 
+LANGUAGE_MAP = {
+     "en": "English", 
+     "hi": "Hindi", 
+     "gu": "Gujarati", 
+     "fr": "French", 
+     "es": "Spanish", 
+     "de": "German", 
+     "it": "Italian", 
+     "pt": "Portuguese", 
+     "ru": "Russian", 
+     "ja": "Japanese", 
+     "ko": "Korean", 
+     "zh": "Chinese" 
+     } 
+
+def get_available_subtitles(url):
+     
+    ydl_opts = {
+          "quiet":True, 
+          "skip_download":True 
+          }
+     
+    with ytd.YoutubeDL(ydl_opts) as ydl:
+    
+        info = ydl.extract_info(url=url,download=False)
+    
+    subtitles = info.get("subtitles", {})
+    auto_subtitles = info.get("automatic_captions", {})
+    
+    available = set() 
+    
+    for lang in subtitles.keys():
+        available.add(lang)
+             
+    for lang in auto_subtitles.keys():
+        available.add(lang)
+                 
+    return sorted(list(available))
+
 link = st.text_input("Enter the URL of the audio or video you want to download:")
 media_type = st.selectbox("Select media type", ["audio", "video"])
+
+include_subtitles = False
+
+subtitle_language = None
+
+if media_type == "video":
+    
+    include_subtitles = st.toggle("Include subtitles")
+
+    if include_subtitles and link:
+        try:
+            subtitle_language = get_available_subtitles(link)
+        
+            if subtitle_language:
+
+                language_options = {
+
+                     LANGUAGE_MAP.get(code,code):code
+
+                       for code in subtitle_language 
+                       }
+                
+                subtitle_language = st.selectbox("Select Subtitle Language",list(language_options.keys()))
+            
+            else: 
+                st.warning("No subtitles available")
+        except:
+            st.warning("could not fetch subtitle languages")
 
 audio_formats = None
 
@@ -142,14 +210,19 @@ if st.button("Download"):
                 "outtmpl": f"{DOWNLOAD_DIR}/%(playlist_title)s/%(title)s.%(ext)s",
 
                 "merge_output_format": "mp4",
+                "nooverwrites": True,
+                "quiet": False,
+                "noplaylist": False, 
+            }
 
+            if include_subtitles and subtitle_language:
+                ydl_opts.update({
                 "writesubtitles": True,
                 "writeautomaticsub": True,
-                "subtitleslangs": ["en"],
-                "nooverwrites": True,
-                "quiet": True,
-                "noplaylist": False,
-            }
+                "subtitleslangs": [subtitle_language],
+                "subtitlesformat":"vtt",
+                "embedsubtitles":True,
+            })
 
         with ytd.YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
